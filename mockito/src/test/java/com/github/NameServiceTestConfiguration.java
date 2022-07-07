@@ -13,5 +13,9 @@ import org.springframework.context.annotation.Profile;
 @Profile("test")
 @Configuration
 public class NameServiceTestConfiguration {
-   // your mock conf
+    @Bean
+    @Primary
+    public NameService nameService() {
+        return Mockito.mock(NameService.class);
+    }
 }

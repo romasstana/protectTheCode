@@ -1,14 +1,13 @@
 package com.github;
 
-import okhttp3.mockwebserver.MockResponse;
+
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -17,6 +16,12 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+
+import okhttp3.mockwebserver.MockResponse;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -51,12 +56,26 @@ class ServerIntegrationTests {
 
     @Test
     void createOrder() {
+        webClient.post().uri("/order")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"amount\": \"EUR100.0\"}")
+                .exchange()
+                .expectStatus().isCreated();
         // TODO: протестируйте успешное создание заказа на 100 евро
         // используя webClient
     }
 
     @Test
     void payOrder() {
+        Order order = new Order(LocalDateTime.now(), BigDecimal.valueOf(100.0), false);
+        Long orderId = orderRepository.save(order).getId();
+
+        webClient.post().uri("/order/{id}/payment", orderId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"creditCardNumber\": \"4532756279624064\"}")
+                .exchange()
+                .expectStatus().isCreated();
+
         // TODO: протестируйте успешную оплату ранее созданного заказа валидной картой
         // используя webClient
         // Получите `id` заказа из базы данных, используя orderRepository
@@ -64,6 +83,21 @@ class ServerIntegrationTests {
 
     @Test
     void getReceipt() {
+        Order order = new Order(LocalDateTime.now(), BigDecimal.valueOf(100.0), true);
+        Payment payment = new Payment(order, "4532756279624064");
+
+        Long orderId = orderRepository.save(order).getId();
+        paymentRepository.save(payment);
+
+        mockWebServer.enqueue(
+                new MockResponse().setResponseCode(200)
+                        .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .setBody("{\"conversion_rate\": 0.8412}")
+        );
+
+        webClient.get().uri("/order/{id}/receipt?currency=USD", orderId)
+                .exchange()
+                .expectStatus().isOk();
         // TODO: Протестируйте получение чека на заказ №1 c currency = USD
         // Создайте объект Order, Payment и выполните save, используя orderRepository
         // Используйте mockWebServer для получения conversion_rate
